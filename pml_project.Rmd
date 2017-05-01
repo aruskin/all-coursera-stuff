@@ -1,0 +1,97 @@
+---
+title: "Practical Machine Learning Course Project"
+date: "5/1/2017"
+output: html_document
+---
+
+#### Preprocessing Data
+
+```{r, message=FALSE}
+library(data.table)
+library(dplyr)
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="pml-training.csv", method = "curl")
+rawData <- fread("pml-training.csv", header=TRUE)
+```
+We download the data set directly and read it in as a data.table; the raw data has `r dim(rawData)[1]` observations of `r dim(rawData)[2]` variables.
+
+```{r, message=FALSE}
+rawData <- select(rawData, -V1, -user_name, -raw_timestamp_part_1,
+                   -raw_timestamp_part_2, -cvtd_timestamp, -num_window,
+                   -new_window)
+```
+
+The raw dataset includes the variables for the row ID, user name (i.e. the name of the person doing the weight-lifting), and timestamps; we will not be using those variables as predictors, since we want this model to be able to generalize to out-of-sample data. Without a codebook, it's unclear what ```new_window``` and ```num_window``` represent, but we suspect they're also specific to the trial settings.
+
+```{r, message=FALSE}
+prop.missing <- apply(rawData, 2, function(x) sum(is.na(x) | x == "")/length(x))
+rawData <- select(rawData, -one_of(names(prop.missing[which(prop.missing > .95)])))
+```
+
+There are `r length(prop.missing[which(prop.missing > .95)])` variables that are missing over 95% of their entries; we will remove those from the set of predictors as well. This leaves us with a more manageable set of 52 predictors. The response variable is ```classe```, a categorical variable with 5 levels (A, B, C, D, E) corresponding to different ways of correctly and incorrectly performing a barbell lift. The predicto variables are measurements taken while each subject was lifting.
+
+#### Train/Test Split
+
+```{r, message=FALSE}
+library(caret)
+set.seed(123)
+inTrain <- createDataPartition(y=rawData$classe,p=0.7, list=FALSE)
+training <- rawData[inTrain,]
+testing <- rawData[-inTrain,]
+```
+
+We randomly split the data into 70% training/30% test sets.
+
+We then fit a gradient boosted machine (GBM) to the training data, using 5-fold cross-validation to select the combination of parameters that results in the highest cross-validated accuracy:
+
+```{r, cache=TRUE, message=FALSE}
+
+set.seed(47)
+system.time(gbm.fit <- train(classe ~ ., data = training, 
+                 method = "gbm", 
+                 trControl = trainControl(method="cv", number=5),
+                 verbose = FALSE))
+
+gbm.fit
+```
+
+Here we can visualize the change in cross-validated accuracy over the parameter combinations; the accuracy increases as the model becomes more complex (i.e. as the interaction depth and number of trees increase):
+
+```{r}
+ggplot(gbm.fit)
+```
+
+We can also see which variables in the dataset were the most predictive:
+
+```{r, message=FALSE}
+plot(varImp(gbm.fit), top = 20)
+```
+
+This plot displays the ```gbm``` variable importance measure for the 20 most important variables to the model.
+
+The model's performance on the training data:
+
+```{r, message=FALSE}
+confusionMatrix(predict(gbm.fit, training), training$classe)
+```
+
+The model's performance on the held-out test data; we want to make sure the model isn't overfitting to the training data before using it to make predictions on the unlabeled dataset:
+
+```{r, message=FALSE}
+test.results <- confusionMatrix(predict(gbm.fit, testing), testing$classe)
+test.results
+```
+
+We can use the performance on the test set to estimate the model's out-of-sample error; the accuracy is worse than that on the training model, but a 95% CI of (`r test.results$overall[[3]]`, `r test.results$overall[[4]]`) seems reasonable enough for this assignment.
+
+```{r, eval=FALSE}
+# To predict on the unlabeled test set
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="pml-testing.csv", method = "curl")
+test.data <- fread("pml-testing.csv", header=TRUE)
+test.data <- select(test.data, -V1, -user_name, -raw_timestamp_part_1,
+                   -raw_timestamp_part_2, -cvtd_timestamp, -num_window,
+                   -new_window, 
+                   -one_of(names(prop.missing[which(prop.missing > .95)])))
+
+test.data$pred.classe <- predict(gbm.fit, test.data)
+select(test.data, problem_id, pred.classe)
+
