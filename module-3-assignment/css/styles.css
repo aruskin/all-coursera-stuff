@@ -22,8 +22,11 @@ hr {
 	border-top: 1px solid black;
 }
 
+.row {
+	margin: 15px;
+}
+
 #tall-section {
-	margin-top: 10px;
 	padding-top: 10px;
 	background-color: #8ab5a9;
 }
