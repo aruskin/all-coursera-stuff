@@ -13,9 +13,8 @@
   text-align: center;
 }
 
-.navbar-header button.navbar-toggle {
-  clear: both;
-  margin-top: -30px;
+.navbar-toggle {
+	margin-top: 25px;
 }
 
 hr {
