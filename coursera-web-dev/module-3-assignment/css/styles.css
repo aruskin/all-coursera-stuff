@@ -1,0 +1,33 @@
+#nav-list {
+	margin-top: 0px;
+	margin-bottom: 0px;
+	background-color: #9cb58a;
+}
+
+#nav-list a:hover {
+  background: #E7E7E7;
+}
+
+#nav-list a {
+  color: black;
+  text-align: center;
+}
+
+.navbar-toggle {
+	margin-top: 25px;
+}
+
+hr {
+	margin: 0px;
+	border-top: 1px solid black;
+}
+
+.row {
+	margin: 15px;
+}
+
+#tall-section {
+	padding-top: 10px;
+	background-color: #8ab5a9;
+	height: 1000px;
+}
